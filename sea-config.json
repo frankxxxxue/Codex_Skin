@@ -1,0 +1,9 @@
+{
+  "main": "dist/inject.cjs",
+  "output": "dist/sea-prep.blob",
+  "disableExperimentalSEAWarning": true,
+  "assets": {
+    "skin/accent.js": "skin/accent.js",
+    "skin/apply-skin.js": "skin/apply-skin.js"
+  }
+}

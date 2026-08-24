@@ -1,0 +1,20 @@
+{
+  "name": "codex-skin",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Photo skin for the OpenAI ChatGPT desktop app via local CDP injection (zero-dependency, Node >= 22)",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "apply": "node injector/inject.mjs",
+    "restore": "node injector/inject.mjs --restore",
+    "probe": "node injector/inject.mjs --probe",
+    "build:exe": "node build-exe.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}
