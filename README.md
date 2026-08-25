@@ -8,6 +8,7 @@
 
 > 取色算法移植自 `dsh-photo-skins` 的 `src/client/accent.ts`；本目录为独立工程，不依赖、不修改 dsh-photo-skins。
 
+![Photo skins demo](screenshot/Skin_2.jpg)
 ## 前置条件
 
 - Windows 或 macOS + OpenAI ChatGPT 桌面版（已安装）
@@ -55,6 +56,7 @@ node injector\inject.mjs
 
 配置（照片压缩后 + 明暗 + 模糊 + 填充方式）会存到 ChatGPT 的 localStorage，启动自动恢复上次记录
 
+![Photo skins demo](screenshot/Skin_1.jpg)
 ### 命令行带初始照片
 
 ```powershell
