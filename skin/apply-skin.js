@@ -3,12 +3,12 @@
  * 依赖 window.CodexSkinAccent（由 accent.js 提供）。
  *
  * 这是「图片替换（照片融合背景）」版：
- *   - 照片铺在 body 背景，把原生不透明表面令牌（--color-surface、
- *     --color-token-side-bar-background 等）覆写为 transparent，消除白色方块；
- *   - 侧边栏用「水平渐变」（左深右浅，右缘渐隐到接近透明），与透明的内容区
- *     无缝衔接，让照片左右连续、无接缝；
- *   - 标题栏/输入框用半透明 + backdrop-filter 磨砂（小面积，安全）；
- *   - 弹窗（elevated）保持半透明保证可读；
+ *   - 照片铺在独立的 fixed z-index:-1 图层（[data-codex-photo-layer]），把原生
+ *     不透明表面令牌（--color-surface、--color-token-side-bar-background 等）
+ *     覆写为 transparent，消除白色方块；
+ *   - 侧边栏 / 内容区 / 标题栏完全透明，border 也透明，照片贯穿、无发白分隔线；
+ *   - 输入框 / 弹窗用半透明 + backdrop-filter 磨砂（小面积，安全）保证可读；
+ *   - 文字可读性靠主题底色 text-shadow 光晕；
  *   - 跟随照片取色：主按钮 / 聚焦 / 链接。
  *
  * 融合手法参考社区 Codex-Dream-Skin / codex-theme-inject：底层铺图 + 半透明渐变

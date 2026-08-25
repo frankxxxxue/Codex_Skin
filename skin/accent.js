@@ -113,14 +113,10 @@
     const dominant = dominantColor(pixels)
     const average = averageColor(pixels)
     const accent = mix(dominant, average, 1 / 3)
-    const scrimDark = mix(accent, { r: 0, g: 0, b: 0 }, 0.82)
-    const scrimLight = mix(accent, { r: 255, g: 255, b: 255 }, 0.9)
     return {
       accent: rgbToHex(accent),
       accentSoft: 'rgba(' + Math.round(accent.r) + ', ' + Math.round(accent.g) + ', ' + Math.round(accent.b) + ', 0.18)',
       accentContrast: contrastTextFor(accent),
-      scrimDark: 'rgba(' + Math.round(scrimDark.r) + ', ' + Math.round(scrimDark.g) + ', ' + Math.round(scrimDark.b) + ', 0.34)',
-      scrimLight: 'rgba(' + Math.round(scrimLight.r) + ', ' + Math.round(scrimLight.g) + ', ' + Math.round(scrimLight.b) + ', 0.10)',
     }
   }
 

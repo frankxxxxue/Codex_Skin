@@ -10,21 +10,24 @@
 
 ## 前置条件
 
-- Windows + OpenAI ChatGPT 桌面版（已安装，Electron 版本）。
+- Windows 或 macOS + OpenAI ChatGPT 桌面版（已安装，Electron 版本）。
 - 一张本地照片（PNG / JPG / WebP / GIF）。
-- 仅「bat / 命令行」方式需要 Node.js ≥ 22（使用原生 `fetch` / `WebSocket`，运行时零依赖）；「exe」方式无需 Node。
+- 仅「bat / 命令行」方式需要 Node.js ≥ 22（使用原生 `fetch` / `WebSocket`，运行时零依赖）；「exe / 可执行文件」方式无需 Node。
 
 ## 安装与启动
 
-三种方式，按「对普通用户最方便」排序：
+按「对普通用户最方便」排序：
 
-### 方式一：双击 exe（零门槛，推荐给普通用户）
+### 方式一：双击可执行文件（零门槛，推荐给普通用户）
 
-从 Release 下载 `CodexSkin.exe`，双击运行即可：自动带调试端口重启 ChatGPT、注入皮肤、恢复上次照片。无需安装 Node、无需命令行。
+从 Release 下载对应平台的单文件并双击运行：自动带调试端口重启 ChatGPT、注入皮肤、恢复上次照片。无需安装 Node、无需命令行。
 
-> 首次运行 Windows 可能弹 SmartScreen（exe 未签名），点「更多信息 → 仍要运行」。
+- Windows：`CodexSkin.exe`
+- macOS：`CodexSkin`
 
-### 方式二：双击 bat（需先装一次 Node）
+> 首次运行可能被系统拦截（exe 未签名 / macOS 未公证）：Windows 点「更多信息 → 仍要运行」；macOS 右键 → 打开，或到「系统设置 → 隐私与安全性」允许。
+
+### 方式二：双击 bat（仅 Windows，需先装一次 Node）
 
 1. 安装 Node.js ≥ 22：https://nodejs.org/（一次性）。
 2. 双击 `启动皮肤.bat`。
@@ -33,7 +36,7 @@
 
 见下方「用法」。
 
-> 打包 exe 的方法：`npm run build:exe`（内部用 esbuild 打成 CJS 再走 Node SEA + postject），产物在 `dist/CodexSkin.exe`。
+> 打包可执行文件的方法：在目标平台上运行 `npm run build:exe`（内部用 esbuild 打成 CJS 再走 Node SEA + postject，macOS 额外做 codesign 重签），产物为 `dist/CodexSkin.exe`（Windows）或 `dist/CodexSkin`（macOS）。SEA 不可跨平台交叉编译：macOS 产物必须在 macOS 上构建。
 
 ## 用法
 
@@ -96,8 +99,8 @@ Codex_Skin/
   skin/
     accent.js            # 取色算法（移植自 dsh-photo-skins/accent.ts，UMD）
     apply-skin.js        # 注入到页面的皮肤脚本（照片图层/取色 + 面板 UI）
-  启动皮肤.bat           # 双击启动（检测 Node 后运行注入器）
-  build-exe.mjs          # 打包脚本（esbuild CJS + Node SEA + postject -> CodexSkin.exe）
+  启动皮肤.bat           # 双击启动（仅 Windows；检测 Node 后运行注入器）
+  build-exe.mjs          # 打包脚本（esbuild CJS + Node SEA + postject -> CodexSkin.exe / CodexSkin）
   sea-config.json        # SEA 打包配置（内置 accent.js / apply-skin.js 资源）
   LICENSE                # MIT License
   THIRD_PARTY_NOTICES.md # 第三方来源声明（accent.js 按 BSD-3-Clause 使用）
@@ -133,6 +136,7 @@ node injector\inject.mjs --restore
 - CDP 注入只在带调试端口启动的进程里生效，不写入安装目录；每次冷启动需先跑一次注入器。
 - 非官方方式，仅本机使用。
 - 首次需重启 ChatGPT 以开启调试端口。
+- macOS 下 ChatGPT 默认路径为 `/Applications/ChatGPT.app/Contents/MacOS/ChatGPT`；若安装位置不同，用 `--exe` 手动指定。
 
 ## 免责声明
 

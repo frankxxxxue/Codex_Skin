@@ -1,8 +1,9 @@
 /**
  * inject.mjs — ChatGPT 桌面版照片皮肤注入器（入口）。
  *
- * 目标应用：OpenAI ChatGPT 桌面版（Windows，Electron，MSIX 包 OpenAI.Codex，
- * 主程序 app\ChatGPT.exe）。通过本地回环 CDP 注入皮肤脚本，不改官方文件。
+ * 目标应用：OpenAI ChatGPT 桌面版（Electron）。Windows：MSIX 包 OpenAI.Codex，
+ * 主程序 app\ChatGPT.exe；macOS：ChatGPT.app，二进制
+ * Contents/MacOS/ChatGPT。通过本地回环 CDP 注入皮肤脚本，不改官方文件。
  *
  * 用法见 README.md。零 npm 依赖，需要 Node >= 22。
  */
@@ -10,13 +11,17 @@ import { readFileSync, existsSync } from 'node:fs'
 import { execFileSync, spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, extname } from 'node:path'
+import { homedir } from 'node:os'
 import { connect, listTargets, isReady, pickRenderer } from './cdp.mjs'
 
-const __dirname = typeof __dirname === 'string' ? __dirname : dirname(fileURLToPath(import.meta.url))
-const SKIN_DIR = join(__dirname, '..', 'skin')
+// CJS（esbuild 打包）下 __dirname 由模块包装器提供；ESM 直跑时不存在，改用 import.meta.url。
+// 注意不能用 const __dirname = ... 重新声明同名变量，否则在 ESM 下会因 TDZ 崩溃。
+const moduleDir = typeof __dirname === 'string' ? __dirname : dirname(fileURLToPath(import.meta.url))
+const SKIN_DIR = join(moduleDir, '..', 'skin')
 
+const IS_MAC = process.platform === 'darwin'
 const APP_PROCESS_NAME = 'ChatGPT'
-const APP_EXE_NAME = 'ChatGPT.exe'
+const APP_EXE_NAME = IS_MAC ? 'ChatGPT' : 'ChatGPT.exe'
 
 const MIME = {
   '.png': 'image/png',
@@ -80,7 +85,7 @@ function usage() {
     '  --blur <n>           背景模糊 px，0-50（默认 2）',
     '  --fit cover|contain  壁纸填充（默认 cover）',
     '  --port <n>           CDP 端口（默认 9222）',
-    '  --exe <path>      手动指定 ChatGPT.exe 路径',
+    '  --exe <path>      手动指定 ChatGPT 可执行文件路径',
     '  --restore         一键还原官方外观',
     '  --probe           dump ChatGPT DOM 摘要（调试）',
     '  --yes             重启 ChatGPT 前不确认',
@@ -97,6 +102,7 @@ async function discoverAppExe(manual) {
     if (existsSync(manual)) return manual
     warn('--exe 指定的路径不存在: ' + manual)
   }
+  if (IS_MAC) return discoverMacAppExe()
   // 1. 从运行中的进程取路径
   try {
     const out = execFileSync(
@@ -127,7 +133,43 @@ async function discoverAppExe(manual) {
   return null
 }
 
+function discoverMacAppExe() {
+  // 1. 默认安装路径（全局 + 用户级）
+  const candidates = [
+    '/Applications/ChatGPT.app/Contents/MacOS/ChatGPT',
+    join(homedir(), 'Applications/ChatGPT.app/Contents/MacOS/ChatGPT'),
+  ]
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate
+  }
+  // 2. 从运行中的进程取路径（Electron 主进程命令行含 .app 全路径）
+  try {
+    const out = execFileSync(
+      'ps',
+      ['-ax', '-o', 'pid=,args='],
+      { encoding: 'utf8', timeout: 10000, stdio: ['ignore', 'pipe', 'ignore'] },
+    )
+    const line = out.split(/\r?\n/).find((l) => /ChatGPT\.app\/Contents\/MacOS\/ChatGPT\b/.test(l))
+    if (line) {
+      const match = line.match(/\/[^\s]*ChatGPT\.app\/Contents\/MacOS\/ChatGPT\b/)
+      if (match) return match[0]
+    }
+  } catch {
+    /* fallthrough */
+  }
+  return null
+}
+
 function stopApp() {
+  if (IS_MAC) {
+    try {
+      // pkill -f 匹配主进程与 Helper（无匹配进程时退出码非 0，忽略）
+      execFileSync('pkill', ['-f', 'ChatGPT.app'], { stdio: 'ignore', timeout: 15000 })
+      return true
+    } catch {
+      return false
+    }
+  }
   const names = ['ChatGPT.exe', 'codex.exe', 'codex-code-mode-host.exe']
   let stopped = false
   for (const name of names) {
@@ -145,7 +187,7 @@ function startApp(exe, port) {
   const child = spawn(exe, ['--remote-debugging-port=' + port], {
     detached: true,
     stdio: 'ignore',
-    windowsHide: false,
+    windowsHide: IS_MAC ? undefined : false,
   })
   child.unref()
 }
@@ -294,7 +336,7 @@ async function main() {
   let ready = await isReady(args.port)
   if (!ready) {
     if (exe === null) {
-      warn('未找到 ChatGPT.exe（请用 --exe 手动指定，或先启动 ChatGPT 桌面版）')
+      warn('未找到 ChatGPT 可执行文件（请用 --exe 手动指定，或先启动 ChatGPT 桌面版）')
       process.exitCode = 1
       return
     }
