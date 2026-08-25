@@ -2,7 +2,7 @@
  * inject.mjs — ChatGPT 桌面版照片皮肤注入器（入口）。
  *
  * 目标应用：OpenAI ChatGPT 桌面版（Electron）。Windows：MSIX 包 OpenAI.Codex，
- * 主程序 app\ChatGPT.exe；macOS：ChatGPT.app，二进制
+ * 主程序 app\ChatGPT.exe；macOS：Codex.app（与 OpenAI.Codex 对应），二进制
  * Contents/MacOS/ChatGPT。通过本地回环 CDP 注入皮肤脚本，不改官方文件。
  *
  * 用法见 README.md。零 npm 依赖，需要 Node >= 22。
@@ -149,21 +149,30 @@ function discoverMacAppExe() {
 
 function findMacApp() {
   const candidates = []
-  try {
-    const out = execFileSync(
-      'mdfind',
-      ['-name', 'ChatGPT.app'],
-      { encoding: 'utf8', timeout: 10000, stdio: ['ignore', 'pipe', 'ignore'] },
-    )
-    for (const line of out.split(/\r?\n/)) {
-      const p = line.trim()
-      if (p.endsWith('.app')) candidates.push(p)
+  // bundle 名当前是 Codex.app（与 Windows 的 OpenAI.Codex 一致），
+  // 老版本 / 个别渠道可能是 ChatGPT.app，两者都搜一遍。
+  for (const name of ['Codex.app', 'ChatGPT.app']) {
+    try {
+      const out = execFileSync(
+        'mdfind',
+        ['-name', name],
+        { encoding: 'utf8', timeout: 10000, stdio: ['ignore', 'pipe', 'ignore'] },
+      )
+      for (const line of out.split(/\r?\n/)) {
+        const p = line.trim()
+        if (p.endsWith('.app')) candidates.push(p)
+      }
+    } catch {
+      /* ignore */
     }
-  } catch {
-    /* ignore */
   }
   // 默认路径兜底（mdfind 可能因 Spotlight 未索引而漏掉）
-  for (const c of ['/Applications/ChatGPT.app', join(homedir(), 'Applications/ChatGPT.app')]) {
+  for (const c of [
+    '/Applications/Codex.app',
+    '/Applications/ChatGPT.app',
+    join(homedir(), 'Applications/Codex.app'),
+    join(homedir(), 'Applications/ChatGPT.app'),
+  ]) {
     if (existsSync(c) && !candidates.includes(c)) candidates.push(c)
   }
   return candidates[0] || null
@@ -202,9 +211,9 @@ function findMacRunningApp() {
       ['-ax', '-o', 'pid=,args='],
       { encoding: 'utf8', timeout: 10000, stdio: ['ignore', 'pipe', 'ignore'] },
     )
-    const line = out.split(/\r?\n/).find((l) => /ChatGPT\.app\/Contents\/MacOS\//.test(l))
+    const line = out.split(/\r?\n/).find((l) => /(Codex|ChatGPT)\.app\/Contents\/MacOS\//.test(l))
     if (line) {
-      const match = line.match(/\/[^\s]*ChatGPT\.app\/Contents\/MacOS\/[^\s]+/)
+      const match = line.match(/\/[^\s]*(Codex|ChatGPT)\.app\/Contents\/MacOS\/[^\s]+/)
       if (match) return match[0]
     }
   } catch {
