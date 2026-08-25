@@ -7,7 +7,7 @@
  * macOS 的 CodexSkin 必须在 macOS 上构建，Windows 的 CodexSkin.exe 必须在 Windows 上构建。
  */
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, copyFileSync, existsSync } from 'node:fs'
+import { mkdirSync, copyFileSync, existsSync, unlinkSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -35,10 +35,29 @@ console.log('复制 node 二进制为 ' + exe + '...')
 copyFileSync(process.execPath, exe)
 
 if (IS_MAC) {
-  // postject 注入会破坏 node 二进制的 Apple 签名，需先移除原签名，注入后再 ad-hoc 重签，
-  // 否则在 Apple Silicon 上会被拒绝运行。
-  console.log('移除原签名（codesign --remove-signature）...')
-  execFileSync('codesign', ['--remove-signature', exe], { stdio: 'inherit' })
+  // 官方 node 若是 universal binary（x86_64 + arm64 双切片），NODE_SEA_FUSE sentinel
+  // 会在两个切片各出现一次，postject 报 "Multiple occurrences"。但 lipo 瘦身后重新打包
+  // 的 Mach-O 又可能让 postject 注入偏移出错（产物段错误）。最稳的是用「天然单架构」的
+  // node（arch-specific tar.gz）构建、完全跳过 lipo；只有检测到 universal 才瘦身兜底。
+  let isUniversal = false
+  try {
+    const info = execFileSync('lipo', ['-info', exe], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+    isUniversal = /universal/i.test(info)
+  } catch {
+    /* lipo 不可用或非 fat 文件，视为单架构 */
+  }
+  if (isUniversal) {
+    const lipoArch = process.arch === 'x64' ? 'x86_64' : process.arch
+    console.log('node 是 universal binary，瘦身为单架构（lipo -thin ' + lipoArch + '）...')
+    const thin = exe + '.thin'
+    execFileSync('lipo', ['-thin', lipoArch, exe, '-output', thin], { stdio: 'inherit' })
+    copyFileSync(thin, exe)
+    unlinkSync(thin)
+  } else {
+    // 单架构 node 同样带 Apple 签名，postject 前必须先移除，否则注入破坏 Mach-O（产物段错误）
+    console.log('node 已是单架构，移除原签名（codesign --remove-signature）...')
+    execFileSync('codesign', ['--remove-signature', exe], { stdio: 'inherit' })
+  }
 }
 
 console.log('注入 blob（npx postject）...')

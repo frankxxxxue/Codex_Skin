@@ -7,7 +7,7 @@
  *
  * 用法见 README.md。零 npm 依赖，需要 Node >= 22。
  */
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs'
 import { execFileSync, spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, extname } from 'node:path'
@@ -134,28 +134,81 @@ async function discoverAppExe(manual) {
 }
 
 function discoverMacAppExe() {
-  // 1. 默认安装路径（全局 + 用户级）
-  const candidates = [
-    '/Applications/ChatGPT.app/Contents/MacOS/ChatGPT',
-    join(homedir(), 'Applications/ChatGPT.app/Contents/MacOS/ChatGPT'),
-  ]
-  for (const candidate of candidates) {
-    if (existsSync(candidate)) return candidate
+  // 用 macOS 标准机制「自动发现」，不依赖固定安装路径、不硬编码二进制名：
+  //   1) Spotlight(mdfind) 按名称定位 ChatGPT.app；2) 读 Info.plist 的 CFBundleExecutable。
+  const appPath = findMacApp()
+  if (appPath) {
+    const exe = macBundleExecutable(appPath)
+    if (exe) return exe
   }
-  // 2. 从运行中的进程取路径（Electron 主进程命令行含 .app 全路径）
+  // 兜底：ChatGPT 正在运行时，从进程列表提取二进制路径（不硬编码二进制名）。
+  const running = findMacRunningApp()
+  if (running) return running
+  return null
+}
+
+function findMacApp() {
+  const candidates = []
+  try {
+    const out = execFileSync(
+      'mdfind',
+      ['-name', 'ChatGPT.app'],
+      { encoding: 'utf8', timeout: 10000, stdio: ['ignore', 'pipe', 'ignore'] },
+    )
+    for (const line of out.split(/\r?\n/)) {
+      const p = line.trim()
+      if (p.endsWith('.app')) candidates.push(p)
+    }
+  } catch {
+    /* ignore */
+  }
+  // 默认路径兜底（mdfind 可能因 Spotlight 未索引而漏掉）
+  for (const c of ['/Applications/ChatGPT.app', join(homedir(), 'Applications/ChatGPT.app')]) {
+    if (existsSync(c) && !candidates.includes(c)) candidates.push(c)
+  }
+  return candidates[0] || null
+}
+
+function macBundleExecutable(appPath) {
+  // 优先读 Info.plist 的 CFBundleExecutable（真实二进制名，可能不叫 ChatGPT）
+  try {
+    const name = execFileSync(
+      'defaults',
+      ['read', join(appPath, 'Contents', 'Info.plist'), 'CFBundleExecutable'],
+      { encoding: 'utf8', timeout: 10000, stdio: ['ignore', 'pipe', 'ignore'] },
+    ).trim()
+    const exe = join(appPath, 'Contents', 'MacOS', name)
+    if (name && existsSync(exe)) return exe
+  } catch {
+    /* ignore */
+  }
+  // 兜底：列 Contents/MacOS 取第一个可执行文件
+  try {
+    const dir = join(appPath, 'Contents', 'MacOS')
+    for (const f of readdirSync(dir)) {
+      const p = join(dir, f)
+      if (statSync(p).isFile()) return p
+    }
+  } catch {
+    /* ignore */
+  }
+  return null
+}
+
+function findMacRunningApp() {
   try {
     const out = execFileSync(
       'ps',
       ['-ax', '-o', 'pid=,args='],
       { encoding: 'utf8', timeout: 10000, stdio: ['ignore', 'pipe', 'ignore'] },
     )
-    const line = out.split(/\r?\n/).find((l) => /ChatGPT\.app\/Contents\/MacOS\/ChatGPT\b/.test(l))
+    const line = out.split(/\r?\n/).find((l) => /ChatGPT\.app\/Contents\/MacOS\//.test(l))
     if (line) {
-      const match = line.match(/\/[^\s]*ChatGPT\.app\/Contents\/MacOS\/ChatGPT\b/)
+      const match = line.match(/\/[^\s]*ChatGPT\.app\/Contents\/MacOS\/[^\s]+/)
       if (match) return match[0]
     }
   } catch {
-    /* fallthrough */
+    /* ignore */
   }
   return null
 }
